@@ -1,0 +1,128 @@
+name: Deploy to Kubernetes
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+    
+    - name: Configure kubectl with kubeconfig
+      run: |
+        # Lưu kubeconfig từ GitHub Secrets
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+        chmod 600 $HOME/.kube/config
+        
+        # Verify connection
+        kubectl cluster-info
+        kubectl get nodes
+
+    - name: Deploy Airflow
+      run: |
+        cd infra/k8s/airflow
+        kubectl apply -f .
+        kubectl rollout status deployment/airflow-webserver -n airflow
+
+    - name: Deploy Kafka
+      run: |
+        cd infra/k8s/kafka
+        kubectl apply -f .
+        kubectl wait --for=condition=ready pod -l app=kafka -n default --timeout=300s
+
+    - name: Deploy MLflow
+      run: |
+        cd infra/k8s/mlflow
+        kubectl apply -f .
+
+    - name: Deploy PostgreSQL
+      run: |
+        cd infra/k8s/postgres
+        kubectl apply -f .
+
+    - name: Deploy Minio
+      run: |
+        cd infra/k8s/minio
+        kubectl apply -f .
+
+    - name: Deployment Status
+      run: |
+        echo "=== Kubernetes Deployments ==="
+        kubectl get deployments -A
+        echo "=== Kubernetes StatefulSets ==="
+        kubectl get statefulsets -A
+        echo "=== Kubernetes Services ==="
+        kubectl get svc -A
+
+  # Optional: Deploy serving pipeline to K8s (if you have a deployment YAML)
+  deploy-serving:
+    name: Deploy Serving Pipeline
+    runs-on: ubuntu-latest
+    needs: deploy
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+        chmod 600 $HOME/.kube/config
+    
+    - name: Check if serving deployment exists
+      run: |
+        # Tạo deployment YAML nếu chưa có
+        kubectl apply -f - <<EOF
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: mlops-serving
+          namespace: default
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: mlops-serving
+          template:
+            metadata:
+              labels:
+                app: mlops-serving
+            spec:
+              containers:
+              - name: serving
+                image: mlops-serving:latest
+                ports:
+                - containerPort: 8000
+                env:
+                - name: MLFLOW_TRACKING_URI
+                  value: "http://mlflow:5000"
+        ---
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: mlops-serving
+          namespace: default
+        spec:
+          selector:
+            app: mlops-serving
+          ports:
+          - port: 8000
+            targetPort: 8000
+          type: LoadBalancer
+        EOF
+        
+        kubectl rollout status deployment/mlops-serving
+
+    - name: Serving Pipeline Deployment Status
+      run: |
+        kubectl get pods -l app=mlops-serving
+        kubectl get svc mlops-serving

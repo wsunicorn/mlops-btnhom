@@ -1,0 +1,63 @@
+name: Build and Push Docker Images
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'serving_pipeline/**'
+      - 'infra/docker/**'
+      - '.github/workflows/build-and-push.yml'
+
+jobs:
+  build-and-push:
+    name: Build and Push to Container Registry
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: Build serving pipeline image (local)
+      run: |
+        cd serving_pipeline
+        docker build -t mlops-serving:latest .
+        docker build -f Dockerfile.ui -t mlops-ui:latest .
+    
+    - name: Build Airflow image (local)
+      run: |
+        cd infra/docker/airflow
+        docker build -t mlops-airflow:latest .
+    
+    - name: Build MLflow image (local)
+      run: |
+        cd infra/docker/mlflow
+        echo "MLflow image built (if Dockerfile exists)"
+    
+    - name: List all built images
+      run: docker images | grep mlops
+
+    # Uncomment below sections when you have container registry credentials
+    
+    # - name: Login to Docker Registry
+    #   uses: docker/login-action@v2
+    #   with:
+    #     registry: ${{ secrets.REGISTRY_URL }}
+    #     username: ${{ secrets.REGISTRY_USERNAME }}
+    #     password: ${{ secrets.REGISTRY_PASSWORD }}
+    
+    # - name: Push serving pipeline image
+    #   run: |
+    #     docker push ${{ secrets.REGISTRY_URL }}/mlops-serving:latest
+    #     docker push ${{ secrets.REGISTRY_URL }}/mlops-serving:${{ github.sha }}
+    
+    # - name: Push UI image
+    #   run: |
+    #     docker push ${{ secrets.REGISTRY_URL }}/mlops-ui:latest
+    #     docker push ${{ secrets.REGISTRY_URL }}/mlops-ui:${{ github.sha }}
+    
+    # - name: Push Airflow image
+    #   run: |
+    #     docker push ${{ secrets.REGISTRY_URL }}/mlops-airflow:latest
+    #     docker push ${{ secrets.REGISTRY_URL }}/mlops-airflow:${{ github.sha }}

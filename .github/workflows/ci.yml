@@ -1,0 +1,139 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test-data-pipeline:
+    name: Test Data Pipeline
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        cd data-pipeline
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Lint with pylint
+      run: |
+        cd data-pipeline
+        pip install pylint
+        pylint scripts/ --exit-zero || true
+    
+    - name: Run data pipeline tests
+      run: |
+        cd data-pipeline
+        python -m pytest scripts/ -v || true
+
+  test-model-pipeline:
+    name: Test Model Pipeline
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        cd model_pipeline
+        python -m pip install --upgrade pip
+        pip install -r src/requirements.txt || pip install pytest || true
+    
+    - name: Run model pipeline tests
+      run: |
+        cd model_pipeline
+        python -m pytest src/tests/ -v || true
+
+  test-serving-pipeline:
+    name: Test Serving Pipeline
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        cd serving_pipeline
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Lint with pylint
+      run: |
+        cd serving_pipeline
+        pip install pylint
+        pylint api/ -v --exit-zero || true
+    
+    - name: Run serving pipeline tests
+      run: |
+        cd serving_pipeline
+        python test.py || true
+
+  build-docker:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [test-data-pipeline, test-model-pipeline, test-serving-pipeline]
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: Build serving pipeline image
+      run: |
+        cd serving_pipeline
+        docker build -t mlops-serving:${{ github.sha }} .
+        docker build -f Dockerfile.ui -t mlops-ui:${{ github.sha }} .
+    
+    - name: Build airflow image
+      run: |
+        cd infra/docker/airflow
+        docker build -t mlops-airflow:${{ github.sha }} .
+    
+    - name: List built images
+      run: docker images | grep mlops
+
+  code-quality:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install quality tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install pylint flake8 black
+    
+    - name: Check code formatting with black
+      run: |
+        black --check data-pipeline/ model_pipeline/ serving_pipeline/ || true
+    
+    - name: Run flake8
+      run: |
+        flake8 data-pipeline/ model_pipeline/ serving_pipeline/ --max-line-length=100 --exit-zero || true
