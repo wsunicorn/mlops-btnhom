@@ -159,7 +159,7 @@ cd aio2025-mlops-project01
 ### 2. Start Infrastructure (Docker)
 ```bash
 cd infra/docker
-./run.sh start all
+./run.sh up
 ```
 
 This starts MLflow, Kafka, Airflow, and monitoring services.
@@ -186,40 +186,48 @@ pip install -r requirements.txt
 dvc pull
 
 # Initialize Feast
-cd churn_feature_store
+cd churn_feature_store/churn_features/feature_repo
 feast apply
+
+# Optional: materialize online features to Redis
+feast materialize-incremental $(date +%Y-%m-%dT%H:%M:%S)
 ```
 
 ### 4. Train Model
 ```bash
-cd model_pipeline/src
+cd model_pipeline
 
-# Configure environment (edit config/config.yaml)
+# Install model pipeline dependencies
+pip install -r requirements.txt
+
+cd src
+
+# Configure environment (edit config/logistic_regression.yaml)
 # Set MLflow tracking URI: http://localhost:5000
 
 # Run training
 bash run_sh/train.sh
 
+# Capture RUN_ID from training logs, then evaluate
+RUN_ID=<your_run_id>
+
 # Evaluate model
-bash run_sh/eval.sh
+bash run_sh/eval.sh --run-id $RUN_ID
 
 # Register model
-bash run_sh/register_model.sh --model_name customer_churn_model
+bash run_sh/register_model.sh --run-id $RUN_ID --model-name logistic_regression_churn
 ```
 
 ### 5. Serve Model
 ```bash
 cd serving_pipeline
 
-# Set environment variables
-export MODEL_URI="models:/customer_churn_model/champion"
-export MLFLOW_TRACKING_URI="http://localhost:5000"
-export MLFLOW_S3_ENDPOINT_URL="http://localhost:9000"
-export AWS_ACCESS_KEY_ID="minioadmin"
-export AWS_SECRET_ACCESS_KEY="minioadmin"
+# Create runtime env file
+cp .env.example .env
+# Edit MODEL_URI in .env after model is promoted to champion
 
 # Start API and UI
-docker-compose up -d
+docker compose up -d
 
 # Access services
 # API: http://localhost:8000/docs
@@ -261,10 +269,10 @@ feast materialize-incremental $(date +%Y-%m-%d)
 **Location**: [`model_pipeline/`](model_pipeline/)
 
 **Workflow**:
-1. **Configuration**: Edit `src/config/config.yaml`
+1. **Configuration**: Edit `src/config/logistic_regression.yaml`
 2. **Training**: `bash run_sh/train.sh` → logs to MLflow
-3. **Evaluation**: `bash run_sh/eval.sh` → metrics + SHAP plots
-4. **Registration**: `bash run_sh/register_model.sh`
+3. **Evaluation**: `bash run_sh/eval.sh --run-id <run_id>` → metrics + artifacts
+4. **Registration**: `bash run_sh/register_model.sh --run-id <run_id>`
 5. **Promotion**: `bash run_sh/set_model_alias.sh --alias champion`
 
 **Key Scripts**:

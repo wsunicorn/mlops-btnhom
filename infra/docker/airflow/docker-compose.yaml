@@ -128,7 +128,7 @@ services:
     <<: *airflow-common
     command: api-server
     ports:
-      - "8080:8080"
+      - "${AIRFLOW_API_PORT:-8088}:8080"
     networks:
       - aio-network
     healthcheck:

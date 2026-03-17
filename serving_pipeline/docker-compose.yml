@@ -29,9 +29,12 @@ services:
     container_name: churn-prediction-ui
     restart: unless-stopped
     ports:
-      - "7860:7860"
+      - "7860:7823"
     environment:
       - API_BASE_URL=${API_BASE_URL}
+    volumes:
+      - ../data-pipeline/churn_feature_store:/churn_feature_store
+      - ../data-pipeline/churn_feature_store:/app/churn_feature_store
     depends_on:
       - api
     networks:

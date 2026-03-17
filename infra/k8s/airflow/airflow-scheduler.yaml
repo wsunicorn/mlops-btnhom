@@ -35,7 +35,7 @@ spec:
               key: POSTGRES_PASSWORD
       containers:
       - name: scheduler
-        image: localhost:5000/airflow-mlops:3.1.5-custom
+        image: apache/airflow:3.1.0
         command: ["airflow", "scheduler"]
         envFrom:
         - configMapRef:

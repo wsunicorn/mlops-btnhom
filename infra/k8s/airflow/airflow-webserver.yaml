@@ -34,7 +34,7 @@ spec:
               name: airflow-secret
               key: POSTGRES_PASSWORD
       - name: init-passwords
-        image: busybox:latest
+        image: postgres:15-alpine
         command:
         - sh
         - -c
@@ -47,7 +47,7 @@ spec:
         - name: passwords-rw
           mountPath: /opt/airflow
       - name: init-db
-        image: localhost:5000/airflow-mlops:3.1.5-custom
+        image: apache/airflow:3.1.0
         command:
         - bash
         - -c
@@ -68,7 +68,7 @@ spec:
           mountPath: /opt/airflow/logs
       containers:
       - name: webserver
-        image: localhost:5000/airflow-mlops:3.1.5-custom
+        image: apache/airflow:3.1.0
         command: ["airflow", "api-server"]
         ports:
         - containerPort: 8080

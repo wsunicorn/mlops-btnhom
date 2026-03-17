@@ -223,7 +223,7 @@ class GenericBinaryClassifierTrainer:
             artifact_path=model_name,
             signature=signature,
             input_example=input_example.iloc[:3],
-            code_paths=[str(SRC_PATH / 'src')]
+            code_path=[str(SRC_PATH / 'src')]
         )
     
     # def load_model(self, model_uri: str):

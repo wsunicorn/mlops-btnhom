@@ -22,7 +22,7 @@ export PYTHONPATH="$PROJECT_ROOT"
 # =====================
 
 PYTHON_SCRIPT="$PROJECT_ROOT/src/scripts/register_model.py"
-CONFIG_PATH="$PROJECT_ROOT/src/config/config.yaml"
+CONFIG_PATH="$PROJECT_ROOT/src/config/logistic_regression.yaml"
 
 # =====================
 # List All Registered Models

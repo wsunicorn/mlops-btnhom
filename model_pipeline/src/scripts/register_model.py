@@ -60,7 +60,8 @@ def main():
 
     if args.command == "register":
         logger.info(f"Register model from run: {args.run_id=}")
-        model_uri = f"runs:/{args.run_id}/model"
+        # Training logs model under artifact_path=config['model']['name'].
+        model_uri = f"runs:/{args.run_id}/{config['model']['name']}"
 
         model_version = registry.register_model(
             model_uri=model_uri,

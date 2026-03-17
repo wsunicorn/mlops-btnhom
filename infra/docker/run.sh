@@ -1,7 +1,11 @@
 #!/bin/bash
 
 # Script to manage all platform services
-# Usage: ./start.sh [up|down|restart|status]
+# Usage examples:
+#   ./run.sh up
+#   ./run.sh down
+#   ./run.sh start all
+#   ./run.sh stop mlflow
 
 set -e
 
@@ -25,42 +29,63 @@ print_message() {
     echo -e "${color}${message}${NC}"
 }
 
-# Function to start all services
-start_services() {
-    print_message "$GREEN" "Starting all platform services..."
-    echo ""
-    
-    for service in "${SERVICES[@]}"; do
-        if [ -d "$SCRIPT_DIR/$service" ] && [ -f "$SCRIPT_DIR/$service/docker-compose.yaml" ]; then
+# Function to run command for one service
+run_for_service() {
+    local service=$1
+    local action=$2
+
+    if [ -d "$SCRIPT_DIR/$service" ] && [ -f "$SCRIPT_DIR/$service/docker-compose.yaml" ]; then
+        if [ "$action" = "up" ]; then
             print_message "$BLUE" "Starting $service..."
             cd "$SCRIPT_DIR/$service"
             docker compose up -d
-            echo ""
-        else
-            print_message "$YELLOW" "Warning: $service directory or docker-compose.yaml not found"
-        fi
-    done
-    
-    print_message "$GREEN" "All services started successfully!"
-}
-
-# Function to stop all services
-stop_services() {
-    print_message "$RED" "Stopping all platform services..."
-    echo ""
-    
-    for service in "${SERVICES[@]}"; do
-        if [ -d "$SCRIPT_DIR/$service" ] && [ -f "$SCRIPT_DIR/$service/docker-compose.yaml" ]; then
+        elif [ "$action" = "down" ]; then
             print_message "$BLUE" "Stopping $service..."
             cd "$SCRIPT_DIR/$service"
             docker compose down
-            echo ""
-        else
-            print_message "$YELLOW" "Warning: $service directory or docker-compose.yaml not found"
+        elif [ "$action" = "status" ]; then
+            print_message "$BLUE" "Status of $service:"
+            cd "$SCRIPT_DIR/$service"
+            docker compose ps
         fi
-    done
-    
-    print_message "$GREEN" "All services stopped successfully!"
+        echo ""
+    else
+        print_message "$YELLOW" "Warning: $service directory or docker-compose.yaml not found"
+    fi
+}
+
+# Function to start services
+start_services() {
+    local target=${1:-all}
+    print_message "$GREEN" "Starting services: $target"
+    echo ""
+
+    if [ "$target" = "all" ]; then
+        for service in "${SERVICES[@]}"; do
+            run_for_service "$service" "up"
+        done
+    else
+        run_for_service "$target" "up"
+    fi
+
+    print_message "$GREEN" "Start command completed."
+}
+
+# Function to stop services
+stop_services() {
+    local target=${1:-all}
+    print_message "$RED" "Stopping services: $target"
+    echo ""
+
+    if [ "$target" = "all" ]; then
+        for service in "${SERVICES[@]}"; do
+            run_for_service "$service" "down"
+        done
+    else
+        run_for_service "$target" "down"
+    fi
+
+    print_message "$GREEN" "Stop command completed."
 }
 
 # Function to restart all services
@@ -74,19 +99,17 @@ restart_services() {
 
 # Function to show status of all services
 status_services() {
-    print_message "$BLUE" "Checking status of all platform services..."
+    local target=${1:-all}
+    print_message "$BLUE" "Checking status: $target"
     echo ""
-    
-    for service in "${SERVICES[@]}"; do
-        if [ -d "$SCRIPT_DIR/$service" ] && [ -f "$SCRIPT_DIR/$service/docker-compose.yaml" ]; then
-            print_message "$BLUE" "Status of $service:"
-            cd "$SCRIPT_DIR/$service"
-            docker compose ps
-            echo ""
-        else
-            print_message "$YELLOW" "Warning: $service directory or docker-compose.yaml not found"
-        fi
-    done
+
+    if [ "$target" = "all" ]; then
+        for service in "${SERVICES[@]}"; do
+            run_for_service "$service" "status"
+        done
+    else
+        run_for_service "$target" "status"
+    fi
 }
 
 # Function to show help
@@ -96,11 +119,15 @@ show_help() {
     echo "Usage: $0 [command]"
     echo ""
     echo "Commands:"
-    echo "  up        - Start all platform services"
-    echo "  down      - Stop all platform services"
-    echo "  restart   - Restart all platform services"
-    echo "  status    - Show status of all platform services"
+    echo "  up [target]        - Start services"
+    echo "  down [target]      - Stop services"
+    echo "  restart            - Restart all platform services"
+    echo "  status [target]    - Show service status"
+    echo "  start [target]     - Alias of up"
+    echo "  stop [target]      - Alias of down"
     echo "  help      - Show this help message"
+    echo ""
+    echo "Targets: all | mlflow | kafka | monitor | airflow"
     echo ""
     echo "Services managed:"
     for service in "${SERVICES[@]}"; do
@@ -109,18 +136,21 @@ show_help() {
 }
 
 # Main script logic
-case "${1:-}" in
-    up)
-        start_services
+COMMAND="${1:-}"
+TARGET="${2:-all}"
+
+case "$COMMAND" in
+    up|start)
+        start_services "$TARGET"
         ;;
-    down)
-        stop_services
+    down|stop)
+        stop_services "$TARGET"
         ;;
     restart)
         restart_services
         ;;
     status)
-        status_services
+        status_services "$TARGET"
         ;;
     help|--help|-h)
         show_help
